@@ -1,0 +1,257 @@
+// timelord style sheet
+
+
+global proc AEtimeLordTemplate( string $nodeName ) {
+
+
+
+    editorTemplate -callCustom timeLordLogoHeader timeLordLogoHeader $nodeName;
+    
+    editorTemplate -beginLayout "finalTime" -collapse 0;
+        editorTemplate -addControl "finalTime";
+      
+    editorTemplate -endLayout;
+    
+    editorTemplate -beginLayout "controls" -collapse 0;
+        editorTemplate -addControl "animTime";
+        editorTemplate -addControl "timeScale";
+        editorTemplate -addControl "pivit";
+        editorTemplate -addControl "anchor";
+        //editorTemplate -addControl "switch";
+        editorTemplate -callCustom switchSetup switchSetup $nodeName;
+        
+     
+    editorTemplate -endLayout;
+    
+    editorTemplate -beginLayout "connections" -collapse 0;
+        editorTemplate -callCustom connectionManager connectionManager $nodeName;
+       
+     
+    editorTemplate -endLayout;
+    
+    editorTemplate -beginScrollLayout;
+        editorTemplate -addExtraControls;
+    editorTemplate -endScrollLayout; 
+    
+    editorTemplate -callCustom connectTime connectTime $nodeName;
+    
+    
+}
+
+global proc connectionManager(string $nodeName){
+    $nodeName = timeLordStripNodeName ($nodeName);
+    if (`rowLayout -exists "ffxObjectLinker"`) {
+        deleteUI ffxObjectLinker;
+    }
+    rowLayout -nc 4 -cw 1 25 -cw 2 150 -cw 3 25 ffxObjectLinker;
+    text -l "";
+    columnLayout;
+    button -l "Detach selected"  -w 100 detachButton;
+    button -l "Remove Retime"  -w 100 -bgc 0.5 0.2 0.2 removeRetimeButton;
+    setParent ..;
+    text -l "" ;
+    string $attachedGeoCtrl  =`textScrollList -ams 1 -w 220 -h 120 attachedGeo`;
+    string $conList[]= `listConnections -scn 1 -p 1 -s 0 ($nodeName + ".finalTime")`;
+    for ($c in $conList) {
+        textScrollList -edit -append $c attachedGeo;
+    }
+    button -e -c ("disconnectRetime  "+$attachedGeoCtrl + " " + $nodeName  + " 0;") detachButton;
+    button -e -c ("fullRemoveRetime  "+$attachedGeoCtrl + " " + $nodeName  + " 0;") removeRetimeButton;
+
+}
+
+global proc disconnectRetime( string $control, string $nodeName, int $state) {
+    string $sel[] = `textScrollList -q -si $control`;
+    print $sel;
+    for ($s in $sel) {
+        string $buffer[];
+        tokenize $s "." $buffer;
+        if ($buffer[1] == "time") {
+            print $buffer;
+            connectAttr -force time1.outTime $s;
+            textScrollList -edit -ri $s $control;
+        } else {
+            disconnectAttr ($nodeName + ".finalTime") $s;
+            textScrollList -edit -ri $s $control;
+        }
+    }
+}
+global proc fullRemoveRetime( string $control, string $nodeName, int $state) {
+    string $sel[] = `listConnections -scn 1 -p 1 -s 0 ($nodeName + ".finalTime")`;
+    print $sel;
+    for ($s in $sel) {
+        string $buffer[];
+        tokenize $s "." $buffer;
+        if ($buffer[1] == "time") {
+            print $buffer;
+            connectAttr -force time1.outTime $s;
+            textScrollList -edit -ri $s $control;
+        } else {
+            disconnectAttr ($nodeName + ".finalTime") $s;
+            textScrollList -edit -ri $s $control;
+        }
+    }
+}
+
+
+global proc connectRetime(string $nodeName, int $state) {
+    $nodeName = timeLordStripNodeName ($nodeName);
+    string $sel[] = `ls -sl`;
+        for ($t in $sel) {
+            if ($t != $nodeName) {
+                string $la[] = `listConnections -scn 1 -s 1 -d 0 -t "AlembicNode"  $t`;
+                for ($l in $la) {
+                    print $l;
+                    if (`isConnected -iuc ($nodeName + ".finalTime") ($l + ".time")`== 0) {
+                        connectAttr - force ($nodeName + ".finalTime") ($l + ".time");
+                    }
+                }
+                if (`nodeType $t` == "transform") {
+                    string $typeList[] = {"cacheFile","AlembicNode","cacheBlend"};
+                    string $tShape[] = `listRelatives -fullPath  -shapes $t`;
+                    for ($tL in $typeList) {
+                        string $la[] = `listConnections -scn 1 -s 1 -d 0 -t $tL  $tShape`;
+                        for ($l in $la) {
+                            if ($tL != "cacheBlend") {
+                                print $l;
+                                if (`isConnected -iuc ($nodeName + ".finalTime") ($l + ".time")`== 0) {
+                                    connectAttr - force ($nodeName + ".finalTime") ($l + ".time");
+                                }
+                            } else {
+                                print ("else is running   ......... \n");
+                                print ($l + "......... \n");
+                                print ($tL + "......... \n");
+                                string $laBlend[] = `listConnections -scn 1 -s 1 -d 0 -t "cacheFile"  $l`;
+                                print $laBlend;
+
+                                for ($laB in $laBlend) {
+                                    if (`isConnected -iuc ($nodeName + ".finalTime") ($laB + ".time")`== 0) {
+                                        connectAttr - force ($nodeName + ".finalTime") ($laB  + ".time");
+                                    }
+                                }                            
+                            }
+                        }
+                    }
+                }
+                
+                
+                string $la[] = `listConnections -scn 1 -s 1 -d 0 -t "animCurveTL"  $t`;
+                for ($l in $la) {
+                    connectAttr - force ($nodeName + ".finalTime") ($l + ".input");
+                }
+                string $la[] = `listConnections -scn 1 -s 1 -d 0 -t "animCurveTA"  $t`;
+                for ($l in $la) {
+                    connectAttr - force ($nodeName + ".finalTime") ($l + ".input");
+                }
+                string $la[] = `listConnections -scn 1 -s 1 -d 0 -t "animCurveTU"  $t`;
+                for ($l in $la) {
+                    connectAttr - force ($nodeName + ".finalTime") ($l + ".input");
+                }
+            }
+        }
+
+}
+
+
+
+
+
+
+
+
+global proc switchSetup(string $nodeName) {
+    string $save = $nodeName;
+    $nodeName = timeLordStripNodeName ($nodeName);
+    string $switchList[] = {"frame","animframe","noRetime"};
+    if (`columnLayout -q -exists "foobar"`)
+    { deleteUI "foobar"; }
+
+    columnLayout  foobar;
+
+    string $colorMenu = `optionMenuGrp -label "Switch->"`;
+    menuItem -l "frame";
+    menuItem -l "animframe";
+    menuItem -l "noRetime";
+    string $getSwitch = ($nodeName + ".switch");
+    int $switchID = `getAttr $getSwitch`;
+    optionMenuGrp -e -v $switchList[$switchID] $colorMenu;
+
+    $nodeName = $save;
+    optionMenuGrp -e -cc ("timeLordSwitchAttributeFrom " + $nodeName + " " + 1 + " " + $colorMenu)  $colorMenu;
+    
+    if (`columnLayout -q -exists "connectionSection"`)
+    { deleteUI "connectionSection"; }
+    
+    
+    rowLayout -nc 4 -cw 1 100 -cw 2 150 -cw 3 25 connectionSection;
+    text -l "";
+    columnLayout;
+    button -l "Retime selected"  -h 50 -w 150 -bgc  0.3 0.8 0.3 rtButton;
+    button -e -c ("connectRetime  "+ $nodeName  + " 0;") rtButton;
+
+}
+
+global proc timeLordSwitchAttributeFrom(string $nodeName, int $attr, string $menu)  {
+    $nodeName = timeLordStripNodeName ($nodeName);
+    string $switchList[] = {"frame","animframe","noRetime"};
+    int $sel = `optionMenuGrp -q -sl $menu`;
+    setAttr ($nodeName + ".switch") ($sel-1);
+    if (($sel -1) == 0) {
+        editorTemplate -dc $nodeName animTime 1;
+        editorTemplate -dc $nodeName timeScale 0;
+        editorTemplate -dc $nodeName pivit 0;
+        editorTemplate -dc $nodeName anchor 0;
+    }
+    if (($sel -1) == 1) {
+        editorTemplate -dc $nodeName animTime 0;
+        editorTemplate -dc $nodeName timeScale 0;
+        editorTemplate -dc $nodeName pivit 0;
+        editorTemplate -dc $nodeName anchor 0;
+    }
+    if (($sel -1) == 2) {
+        editorTemplate -dc $nodeName animTime 1;
+        editorTemplate -dc $nodeName timeScale 1;
+        editorTemplate -dc $nodeName pivit 1;
+        editorTemplate -dc $nodeName anchor 1;
+    }
+}
+
+global proc  timeLordLogoHeader(string $nodeName)
+{
+    if (!`symbolButton -q -exists  timeLordHeaderIcon`) {       
+        rowLayout -nc 2 ;
+        symbolButton -h 64 -w 150 -c "timeLordSwapAboutText()" -image "timeLord.png" timeLordHeaderIcon;
+        text -fn "smallBoldLabelFont" -l "TimeLord!!" timeLordAboutText;
+    }
+}
+
+global proc  timeLordSwapAboutText() {
+    string $text1 =  "TimeLord!!";
+    string $text2 =  "Wibbly wobbly\n timey wimey!!";
+
+    string $text = `text -q -l timeLordAboutText`;
+    if (`gmatch $text "TimeLord!!"`) {
+        text -e -l $text2  timeLordAboutText;
+    }
+    else {
+        text -e -l $text1 timeLordAboutText;
+    }
+}
+
+global proc connectTime(string $nodeName) {
+    $nodeName = timeLordStripNodeName ($nodeName);
+    
+    string $inTime =  ($nodeName + ".inTime");
+    if (`isConnected -iuc time1.outTime $inTime` == 0) {
+        connectAttr -force time1.outTime $inTime;
+    }
+}
+
+
+
+global proc string timeLordStripNodeName (string $nodeName){
+    string $buffer[];
+    tokenize $nodeName "." $buffer;
+    return $buffer[0];
+}
+
